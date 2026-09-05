@@ -1,29 +1,49 @@
 openapi: 3.1.0
+
 info:
-  title: GitHub Issues Wrapper API
-  description: Service wrapping GitHub REST API for issue management, comments, and webhook processing.
+  title: GitHub Issues Gateway API
   version: 1.0.0
+  description: >
+    A FastAPI gateway that wraps the GitHub REST API for issue management,
+    comments, webhook processing, and conditional GET requests.
 
 servers:
   - url: http://localhost:8000
-    description: Local server
+    description: Local development server
+
+tags:
+  - name: Health
+  - name: Issues
+  - name: Comments
+  - name: Webhooks
+  - name: Events
 
 paths:
   /healthz:
     get:
-      summary: Health check
+      tags:
+        - Health
+      summary: Check service health
       operationId: healthCheck
       responses:
-        '200':
+        "200":
           description: Service is healthy
           content:
             application/json:
-              example:
-                status: ok
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    example: ok
 
   /issues:
     post:
-      summary: Create a new issue
+      tags:
+        - Issues
+      summary: Create an issue
       operationId: createIssue
       security:
         - BearerAuth: []
@@ -32,335 +52,705 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - title
-              properties:
-                title:
-                  type: string
-                  example: "Bug in payment gateway"
-                body:
-                  type: string
-                  example: "Detailed error logs here."
-                labels:
-                  type: array
-                  items:
-                    type: string
-                  example: ["bug", "priority:high"]
+              $ref: "#/components/schemas/IssueCreate"
+            example:
+              title: Bug in payment gateway
+              body: Detailed error information.
+              labels:
+                - bug
+                - priority-high
       responses:
-        '201':
+        "201":
           description: Issue created successfully
           headers:
             Location:
+              description: Relative URL of the created issue
               schema:
                 type: string
-              description: URI of the created issue
-              example: "/issues/1"
+                example: /issues/1
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Issue'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: "#/components/schemas/Issue"
+              example:
+                number: 1
+                html_url: https://github.com/atomicbunnies/CMPE272-issues-gw/issues/1
+                state: open
+                title: Bug in payment gateway
+                body: Detailed error information.
+                labels:
+                  - name: bug
+                    color: d73a4a
+                created_at: "2026-09-05T12:00:00Z"
+                updated_at: "2026-09-05T12:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     get:
-      summary: List issues
+      tags:
+        - Issues
+      summary: List repository issues
       operationId: listIssues
+      security:
+        - BearerAuth: []
       parameters:
-        - name: state
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [open, closed, all]
-            default: open
-        - name: labels
-          in: query
-          required: false
-          schema:
-            type: string
-            example: "bug,ui"
-        - name: page
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 1
-        - name: per_page
-          in: query
-          required: false
-          schema:
-            type: integer
-            maximum: 100
-            default: 30
+        - $ref: "#/components/parameters/State"
+        - $ref: "#/components/parameters/Labels"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+        - $ref: "#/components/parameters/IfNoneMatch"
       responses:
-        '200':
+        "200":
           description: List of issues
           headers:
             Link:
-              schema:
-                type: string
-              description: GitHub pagination link header
+              $ref: "#/components/headers/Link"
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Issue'
+                  $ref: "#/components/schemas/Issue"
+        "304":
+          description: The issue list has not changed
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /issues/{number}:
+    parameters:
+      - $ref: "#/components/parameters/IssueNumber"
+
     get:
-      summary: Get a single issue
+      tags:
+        - Issues
+      summary: Get one issue
       operationId: getIssue
-      parameters:
-        - name: number
-          in: path
-          required: true
-          schema:
-            type: integer
+      security:
+        - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Issue details
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Issue'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Issue"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
     patch:
-      summary: Update an issue
+      tags:
+        - Issues
+      summary: Update, close, or reopen an issue
+      description: >
+        GitHub does not provide a delete-issue operation. Setting state to
+        closed represents the Delete operation required by the assignment.
       operationId: updateIssue
       security:
         - BearerAuth: []
-      parameters:
-        - name: number
-          in: path
-          required: true
-          schema:
-            type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                title:
-                  type: string
-                body:
-                  type: string
-                state:
-                  type: string
-                  enum: [open, closed]
+              $ref: "#/components/schemas/IssueUpdate"
+            examples:
+              update:
+                value:
+                  title: Updated issue title
+                  body: Updated issue description.
+              close:
+                value:
+                  state: closed
+              reopen:
+                value:
+                  state: open
       responses:
-        '200':
-          description: Issue updated
+        "200":
+          description: Issue updated successfully
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Issue'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Issue"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /issues/{number}/comments:
+    parameters:
+      - $ref: "#/components/parameters/IssueNumber"
+
     post:
+      tags:
+        - Comments
       summary: Add a comment to an issue
       operationId: createComment
       security:
         - BearerAuth: []
-      parameters:
-        - name: number
-          in: path
-          required: true
-          schema:
-            type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - body
-              properties:
-                body:
-                  type: string
-                  example: "I am looking into this."
+              $ref: "#/components/schemas/CommentCreate"
+            example:
+              body: I am looking into this issue.
       responses:
-        '201':
-          description: Comment created
+        "201":
+          description: Comment created successfully
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Comment'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Comment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
-  /webhook:
-    post:
-      summary: Receive GitHub webhooks
-      operationId: handleWebhook
-      parameters:
-        - name: X-Hub-Signature-256
-          in: header
-          required: true
-          schema:
-            type: string
-        - name: X-GitHub-Event
-          in: header
-          required: true
-          schema:
-            type: string
-        - name: X-GitHub-Delivery
-          in: header
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        '204':
-          description: Webhook received and processed
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /events:
     get:
-      summary: List processed webhook deliveries
-      operationId: listEvents
+      tags:
+        - Comments
+      summary: List comments for an issue
+      operationId: listComments
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
       responses:
-        '200':
-          description: List of stored webhook events
+        "200":
+          description: List of issue comments
+          headers:
+            Link:
+              $ref: "#/components/headers/Link"
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/WebhookEvent'
+                  $ref: "#/components/schemas/Comment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /webhook:
+    post:
+      tags:
+        - Webhooks
+      summary: Receive a GitHub webhook
+      operationId: handleWebhook
+      description: >
+        Accepts issues, issue_comment, and ping events. The payload must be
+        authenticated with the X-Hub-Signature-256 HMAC SHA-256 signature.
+      parameters:
+        - $ref: "#/components/parameters/GitHubEvent"
+        - $ref: "#/components/parameters/GitHubDelivery"
+        - $ref: "#/components/parameters/HubSignature"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              action: opened
+              issue:
+                number: 1
+                title: Example issue
+      responses:
+        "204":
+          description: Webhook was verified and processed
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidWebhookSignature"
+        "500":
+          description: Webhook secret configuration is missing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /events:
+    get:
+      tags:
+        - Events
+      summary: List processed webhook events
+      operationId: listEvents
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of events to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Processed webhook event summaries
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WebhookEvent"
 
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
+      bearerFormat: GitHub fine-grained personal access token
+
+  parameters:
+    IssueNumber:
+      name: number
+      in: path
+      required: true
+      description: GitHub issue number
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
+
+    State:
+      name: state
+      in: query
+      required: false
+      description: Issue state filter
+      schema:
+        type: string
+        enum:
+          - open
+          - closed
+          - all
+        default: open
+
+    Labels:
+      name: labels
+      in: query
+      required: false
+      description: Comma-separated label names
+      schema:
+        type: string
+        example: bug,ui
+
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Page number
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PerPage:
+      name: per_page
+      in: query
+      required: false
+      description: Number of results per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 30
+
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: Previously returned ETag value
+      schema:
+        type: string
+        example: W/"12345"
+
+    GitHubEvent:
+      name: X-GitHub-Event
+      in: header
+      required: true
+      description: GitHub webhook event name
+      schema:
+        type: string
+        enum:
+          - issues
+          - issue_comment
+          - ping
+        example: issues
+
+    GitHubDelivery:
+      name: X-GitHub-Delivery
+      in: header
+      required: true
+      description: Unique GitHub webhook delivery identifier
+      schema:
+        type: string
+        format: uuid
+        example: 72157170-c380-11e5-869e-bf276157520b
+
+    HubSignature:
+      name: X-Hub-Signature-256
+      in: header
+      required: true
+      description: HMAC SHA-256 signature generated by GitHub
+      schema:
+        type: string
+        pattern: "^sha256=[a-f0-9]{64}$"
+        example: sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+  headers:
+    Link:
+      description: GitHub pagination links
+      schema:
+        type: string
+        example: <https://api.github.com/repos/owner/repo/issues?page=2>; rel="next"
+
+    ETag:
+      description: Entity tag for conditional requests
+      schema:
+        type: string
+        example: W/"12345"
+
+    XRequestId:
+      description: Request correlation identifier
+      schema:
+        type: string
+        format: uuid
+        example: 9d8f6d9e-7a72-4b3e-8d2f-9e91c5b4f201
 
   responses:
     BadRequest:
-      description: Invalid request payload or parameters
+      description: The request was invalid
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
-            message: "Validation error: 'title' is required"
+            message: Invalid request payload
+
     Unauthorized:
-      description: Authentication token missing or invalid
+      description: GitHub authentication failed
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
-            message: "Invalid or missing GitHub token"
+            message: GitHub authentication failed. Check the configured token.
+
+    Forbidden:
+      description: GitHub denied access
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: GitHub denied access to the requested resource.
+
     NotFound:
-      description: Requested resource not found
+      description: GitHub resource was not found
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
           example:
-            message: "Issue #999 not found"
+            message: Issue #999 not found
+
+    RateLimited:
+      description: GitHub rate limit was exceeded
+      headers:
+        Retry-After:
+          description: Number of seconds before retrying, when available
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: GitHub rate limit exceeded. Retry later.
+
+    ServiceUnavailable:
+      description: GitHub or the upstream connection is temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: GitHub is temporarily unavailable. Retry later.
+
+    InvalidWebhookSignature:
+      description: The webhook signature is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: Invalid webhook signature
 
   schemas:
+    IssueCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Bug in payment gateway
+        body:
+          type:
+            - string
+            - "null"
+          example: Detailed error information.
+        labels:
+          type: array
+          items:
+            type: string
+          example:
+            - bug
+            - priority-high
+
+    IssueUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Updated issue title
+        body:
+          type:
+            - string
+            - "null"
+          example: Updated issue description.
+        state:
+          type: string
+          enum:
+            - open
+            - closed
+          example: closed
+
     Issue:
       type: object
+      required:
+        - number
+        - html_url
+        - state
+        - title
+        - created_at
+        - updated_at
       properties:
         number:
           type: integer
           example: 1
         html_url:
           type: string
-          example: "https://github.com/atomicbunnies/CMPE272-issues-gw/issues/1"
+          format: uri
+          example: https://github.com/atomicbunnies/CMPE272-issues-gw/issues/1
         state:
           type: string
-          example: "open"
+          enum:
+            - open
+            - closed
+          example: open
         title:
           type: string
-          example: "Bug in payment gateway"
+          example: Bug in payment gateway
         body:
-          type: string
-          example: "Detailed error logs here."
+          type:
+            - string
+            - "null"
+          example: Detailed error information.
         labels:
           type: array
           items:
-            type: string
-          example: ["bug"]
+            $ref: "#/components/schemas/Label"
         created_at:
           type: string
           format: date-time
-          example: "2026-03-01T12:00:00Z"
+          example: "2026-09-05T12:00:00Z"
         updated_at:
           type: string
           format: date-time
-          example: "2026-03-01T12:30:00Z"
+          example: "2026-09-05T12:30:00Z"
+
+    Label:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: bug
+        color:
+          type: string
+          example: d73a4a
+        description:
+          type:
+            - string
+            - "null"
+          example: A software defect
+
+    CommentCreate:
+      type: object
+      required:
+        - body
+      properties:
+        body:
+          type: string
+          minLength: 1
+          example: I am looking into this issue.
 
     Comment:
       type: object
+      required:
+        - id
+        - body
+        - user
+        - created_at
+        - html_url
       properties:
         id:
           type: integer
           example: 1001
         body:
           type: string
-          example: "I am looking into this."
+          example: I am looking into this issue.
         user:
           type: object
           properties:
             login:
               type: string
-              example: "atomicbunnies"
+              example: atomicbunnies
         created_at:
           type: string
           format: date-time
-          example: "2026-03-01T12:15:00Z"
+          example: "2026-09-05T12:15:00Z"
         html_url:
           type: string
-          example: "https://github.com/atomicbunnies/CMPE272-issues-gw/issues/1#issuecomment-1001"
+          format: uri
+          example: https://github.com/atomicbunnies/CMPE272-issues-gw/issues/1#issuecomment-1001
 
     WebhookEvent:
       type: object
+      required:
+        - id
+        - event
+        - timestamp
       properties:
         id:
           type: string
-          example: "72157170-c380-11e5-869e-bf276157520b"
+          example: 72157170-c380-11e5-869e-bf276157520b
         event:
           type: string
-          example: "issues"
+          enum:
+            - issues
+            - issue_comment
+            - ping
+          example: issues
         action:
-          type: string
-          example: "opened"
+          type:
+            - string
+            - "null"
+          example: opened
         issue_number:
-          type: integer
+          type:
+            - integer
+            - "null"
           example: 1
         timestamp:
           type: string
           format: date-time
-          example: "2026-03-01T12:00:00Z"
+          example: "2026-09-05T12:20:00Z"
 
     Error:
       type: object
+      required:
+        - message
       properties:
         message:
           type: string
+          example: Invalid request payload
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
