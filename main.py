@@ -96,6 +96,7 @@ async def create_issue(payload: IssueCreate, response: Response):
 
 @app.get("/issues", status_code=status.HTTP_200_OK)
 async def list_issues(
+    request: Request,
     response: Response,
     state: str = Query("open", enum=["open", "closed", "all"]),
     labels: Optional[str] = None,
@@ -103,6 +104,12 @@ async def list_issues(
     per_page: int = Query(30, le=100)
 ):
     headers = get_github_headers()
+    
+    # 클라이언트가 전송한 If-None-Match 헤더 전달 (Conditional GET)
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match:
+        headers["If-None-Match"] = if_none_match
+
     params = {"state": state, "page": page, "per_page": per_page}
     if labels:
         params["labels"] = labels
@@ -110,10 +117,16 @@ async def list_issues(
     async with httpx.AsyncClient() as client:
         res = await client.get(f"{GITHUB_BASE_URL}/issues", params=params, headers=headers)
 
+    # 변경 사항이 없으면 304 Not Modified 응답
+    if res.status_code == 304:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+
     if res.status_code != 200:
         raise HTTPException(status_code=res.status_code, detail=res.text)
 
-    # GitHub 페이지네이션 Link 헤더 전달
+    # ETag 및 Link 헤더 전달
+    if "ETag" in res.headers:
+        response.headers["ETag"] = res.headers["ETag"]
     if "Link" in res.headers:
         response.headers["Link"] = res.headers["Link"]
 
@@ -165,11 +178,7 @@ async def create_comment(number: int, payload: CommentCreate):
 
     return res.json()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
-
-    # --- Webhook & Event Endpoints ---
+# --- Webhook & Event Endpoints ---
 
 def verify_signature(payload_body: bytes, secret: str, signature_header: str) -> bool:
     if not signature_header or not signature_header.startswith("sha256="):
@@ -214,3 +223,7 @@ async def handle_webhook(
 @app.get("/events", status_code=status.HTTP_200_OK)
 async def list_events():
     return WEBHOOK_EVENTS_STORE
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)

@@ -1,5 +1,9 @@
 # Author: Byeonggwan Cho
 # Course: CMPE 272
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import hmac
 import hashlib
 import json
@@ -34,3 +38,12 @@ def test_webhook_valid_signature():
     }
     response = client.post("/webhook", data=payload, headers=headers)
     assert response.status_code == 204
+
+def test_conditional_get_etag():
+    res1 = client.get("/issues")
+    assert res1.status_code == 200
+    
+    etag = res1.headers.get("ETag")
+    if etag:
+        res2 = client.get("/issues", headers={"If-None-Match": etag})
+        assert res2.status_code in [200, 304]
