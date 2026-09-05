@@ -344,11 +344,15 @@ Run the test suite:
 pytest
 ```
 
-The tests include:
+The test suite covers:
 
 * Health check verification
+* Request validation for missing titles and invalid states
 * Invalid webhook signature verification
 * Valid webhook signature verification
+* Unknown webhook event rejection
+* Duplicate webhook delivery handling
+* GitHub authentication error mapping
 * Conditional GET and ETag behavior
 
 The tests mock external GitHub API calls where appropriate so that the unit tests do not require a live GitHub token.
