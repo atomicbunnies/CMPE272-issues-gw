@@ -8,6 +8,8 @@ import hmac
 import hashlib
 import json
 import pytest
+import httpx
+from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from main import app, WEBHOOK_SECRET
 
@@ -24,7 +26,7 @@ def test_webhook_invalid_signature():
         "X-GitHub-Event": "issues",
         "X-Hub-Signature-256": "sha256=invalid_signature"
     }
-    response = client.post("/webhook", data=payload, headers=headers)
+    response = client.post("/webhook", content=payload, headers=headers)
     assert response.status_code == 401
 
 def test_webhook_valid_signature():
@@ -36,14 +38,28 @@ def test_webhook_valid_signature():
         "X-GitHub-Event": "issues",
         "X-Hub-Signature-256": signature
     }
-    response = client.post("/webhook", data=payload, headers=headers)
+    response = client.post("/webhook", content=payload, headers=headers)
     assert response.status_code == 204
 
-def test_conditional_get_etag():
+@patch("httpx.AsyncClient.get", new_callable=AsyncMock)
+def test_conditional_get_etag(mock_get):
+    # 실제 httpx.Response 객체를 반환하도록 구성
+    resp1 = httpx.Response(
+        200,
+        json=[{"number": 1, "title": "Test Issue"}],
+        headers={"ETag": 'W/"12345"'}
+    )
+    resp2 = httpx.Response(
+        304,
+        headers={}
+    )
+    mock_get.side_effect = [resp1, resp2]
+
+    # 1. 일반 GET 요청 검증 (200 OK + ETag Header)
     res1 = client.get("/issues")
     assert res1.status_code == 200
-    
-    etag = res1.headers.get("ETag")
-    if etag:
-        res2 = client.get("/issues", headers={"If-None-Match": etag})
-        assert res2.status_code in [200, 304]
+    assert res1.headers.get("ETag") == 'W/"12345"'
+
+    # 2. Conditional GET 요청 검증 (304 Not Modified)
+    res2 = client.get("/issues", headers={"If-None-Match": 'W/"12345"'})
+    assert res2.status_code == 304
