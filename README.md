@@ -14,3 +14,6 @@ This service relies on environment variables for configuration. Never commit the
 1. Copy the provided `.env.example` template to create your local `.env` file:
    ```bash
    cp .env.example .env
+
+# Conditional GET (ETag) Test
+curl -i http://localhost:8000/issues -H 'If-None-Match: "YOUR_ETAG_HERE"'
