@@ -19,6 +19,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+    - name: Run lint
+      run: |
+        python -m ruff check .
     - name: Run Pytest
       env:
         GITHUB_TOKEN: "dummy_ci_token"
