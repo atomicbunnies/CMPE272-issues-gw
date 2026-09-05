@@ -20,5 +20,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Run Pytest
+      env:
+        GITHUB_TOKEN: "dummy_ci_token"
+        GITHUB_OWNER: "atomicbunnies"
+        GITHUB_REPO: "CMPE272-issues-gw"
+        WEBHOOK_SECRET: "mysecretkey123"
+        PORT: "8000"
       run: |
-        pytest
+        python -m pytest
