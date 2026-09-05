@@ -27,4 +27,6 @@ jobs:
         WEBHOOK_SECRET: "mysecretkey123"
         PORT: "8000"
       run: |
-        python -m pytest
+        python -m pytest --cov=main --cov-report=term-missing
+    - name: Build Docker image
+      run: docker build -t github-issues-gateway .

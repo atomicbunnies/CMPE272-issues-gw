@@ -251,6 +251,31 @@ def verify_signature(
     return hmac.compare_digest(expected_signature, signature_header)
 
 
+def parse_link_header(link_header: Optional[str]) -> Dict[str, str]:
+    """Parse GitHub's RFC 8288-style Link header into relation URLs."""
+    if not link_header:
+        return {}
+
+    links: Dict[str, str] = {}
+    for item in link_header.split(","):
+        url_part, *params = item.strip().split(";", 1)
+        if not (url_part.startswith("<") and url_part.endswith(">")):
+            continue
+
+        relation = None
+        if params:
+            for parameter in params[0].split(";"):
+                name, separator, value = parameter.strip().partition("=")
+                if separator and name.lower() == "rel":
+                    relation = value.strip().strip('"')
+                    break
+
+        if relation:
+            links[relation] = url_part[1:-1]
+
+    return links
+
+
 @app.get("/healthz", status_code=status.HTTP_200_OK)
 async def health_check():
     return {"status": "ok"}

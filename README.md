@@ -1,30 +1,38 @@
-# GitHub Issues Gateway Service
+GitHub Issues Gateway Service
 
-**Author:** Byeonggwan Cho
-**Course:** CMPE 272 – Enterprise Software Platforms
+Author: Byeonggwan Cho
+Course: CMPE 272 – Enterprise Software Platforms
 
 A FastAPI service that wraps the GitHub REST API for issue management in a single repository. The service supports issue creation, listing, retrieval, updating, closing/reopening, comments, webhook signature verification, event inspection, and conditional GET requests using ETags.
 
 Repository: https://github.com/atomicbunnies/CMPE272-issues-gw
 
-## 1. Features
+1. Features
 
-* Create, list, retrieve, update, close, and reopen GitHub issues
-* Add comments to GitHub issues
-* Receive GitHub `issues`, `issue_comment`, and `ping` webhooks
-* Verify webhook payloads with HMAC SHA-256
-* Store received webhook events in memory
-* Forward GitHub pagination `Link` headers
-* Support conditional GET requests with `ETag` and `If-None-Match`
-* Health check endpoint
-* Automated tests with Pytest
-* Docker and GitHub Actions support
+Create, list, retrieve, update, close, and reopen GitHub issues
 
-GitHub does not provide a delete-issue operation. Therefore, the Delete operation is represented by closing an issue through `PATCH /issues/{number}` with `"state": "closed"`.
+Add comments to GitHub issues
 
-## 2. Project Structure
+Receive GitHub issues, issue_comment, and ping webhooks
 
-```text
+Verify webhook payloads with HMAC SHA-256
+
+Store received webhook events in memory
+
+Forward GitHub pagination Link headers
+
+Support conditional GET requests with ETag and If-None-Match
+
+Health check endpoint
+
+Automated tests with Pytest
+
+Docker and GitHub Actions support
+
+GitHub does not provide a delete-issue operation. Therefore, the Delete operation is represented by closing an issue through PATCH /issues/{number} with "state": "closed".
+
+2. Project Structure
+
 .
 ├── main.py
 ├── openapi.yaml
@@ -37,104 +45,100 @@ GitHub does not provide a delete-issue operation. Therefore, the Delete operatio
 └── .github/
     └── workflows/
         └── ci.yml
-```
 
-## 3. Requirements
+3. Requirements
 
-* Python 3.11 or later
-* A GitHub repository that you control
-* A fine-grained GitHub Personal Access Token
+Python 3.11 or later
+
+A GitHub repository that you control
+
+A fine-grained GitHub Personal Access Token
 
 The token should have the minimum permissions required for the target repository:
 
-* Issues: Read and write
+Issues: Read and write
 
-Do not commit the real `.env` file or any GitHub token to the repository.
+Do not commit the real .env file or any GitHub token to the repository.
 
-## 4. Environment Variables
+4. Environment Variables
 
 Copy the example file:
 
-```bash
 cp .env.example .env
-```
 
-Configure the following values in `.env`:
+Configure the following values in .env:
 
-```env
 GITHUB_TOKEN=your_fine_grained_github_token
 GITHUB_OWNER=atomicbunnies
 GITHUB_REPO=CMPE272-issues-gw
 WEBHOOK_SECRET=your_webhook_secret
 PORT=8000
-```
 
-| Variable         | Description                                     |
-| ---------------- | ----------------------------------------------- |
-| `GITHUB_TOKEN`   | Fine-grained GitHub Personal Access Token       |
-| `GITHUB_OWNER`   | GitHub repository owner                         |
-| `GITHUB_REPO`    | GitHub repository name                          |
-| `WEBHOOK_SECRET` | Shared secret used to verify webhook signatures |
-| `PORT`           | Port used by the local service                  |
+Variable
 
-## 5. Local Installation
+Description
+
+GITHUB_TOKEN
+
+Fine-grained GitHub Personal Access Token
+
+GITHUB_OWNER
+
+GitHub repository owner
+
+GITHUB_REPO
+
+GitHub repository name
+
+WEBHOOK_SECRET
+
+Shared secret used to verify webhook signatures
+
+PORT
+
+Port used by the local service
+
+5. Local Installation
 
 Create and activate a virtual environment:
 
-```bash
 python3 -m venv venv
 source venv/bin/activate
-```
 
 Install dependencies:
 
-```bash
 pip install -r requirements.txt
-```
 
 Start the service:
 
-```bash
 uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --reload
-```
 
 The service will be available at:
 
-```text
 http://localhost:8000
-```
 
 Interactive API documentation is available at:
 
-```text
 http://localhost:8000/docs
-```
 
 The OpenAPI contract is provided in:
 
-```text
 openapi.yaml
-```
 
-## 6. API Endpoints
+6. API Endpoints
 
-### Health Check
+Health Check
 
-```bash
 curl http://localhost:8000/healthz
-```
 
 Example response:
 
-```json
 {
   "status": "ok"
 }
-```
 
-### Create an Issue
+Create an Issue
 
-```bash
 curl -X POST http://localhost:8000/issues \
   -H "Content-Type: application/json" \
   -d '{
@@ -142,105 +146,94 @@ curl -X POST http://localhost:8000/issues \
     "body": "Created through the FastAPI wrapper.",
     "labels": ["bug"]
   }'
-```
 
-The endpoint returns `201 Created` and includes a `Location` header pointing to the created issue.
+The endpoint returns 201 Created and includes a Location header pointing to the created issue.
 
-### List Issues
+List Issues
 
-```bash
 curl "http://localhost:8000/issues?state=open&page=1&per_page=30"
-```
 
 Filter by labels:
 
-```bash
 curl "http://localhost:8000/issues?state=all&labels=bug,priority"
-```
 
 Supported query parameters:
 
-* `state`: `open`, `closed`, or `all`
-* `labels`: comma-separated label names
-* `page`: page number
-* `per_page`: number of results per page, up to 100
+state: open, closed, or all
 
-When GitHub provides pagination information, the service forwards the `Link` response header.
+labels: comma-separated label names
 
-### Get an Issue
+page: page number
 
-```bash
+per_page: number of results per page, up to 100
+
+When GitHub provides pagination information, the service forwards the Link response header.
+
+Get an Issue
+
 curl http://localhost:8000/issues/1
-```
 
-### Update an Issue
+Update an Issue
 
-```bash
 curl -X PATCH http://localhost:8000/issues/1 \
   -H "Content-Type: application/json" \
   -d '{
     "title": "Updated issue title",
     "body": "Updated issue description"
   }'
-```
 
-### Close an Issue
+Close an Issue
 
 Because GitHub does not support deleting issues, close an issue to represent the Delete operation:
 
-```bash
 curl -X PATCH http://localhost:8000/issues/1 \
   -H "Content-Type: application/json" \
   -d '{
     "state": "closed"
   }'
-```
 
-### Reopen an Issue
+Reopen an Issue
 
-```bash
 curl -X PATCH http://localhost:8000/issues/1 \
   -H "Content-Type: application/json" \
   -d '{
     "state": "open"
   }'
-```
 
-### Add a Comment
+Add a Comment
 
-```bash
 curl -X POST http://localhost:8000/issues/1/comments \
   -H "Content-Type: application/json" \
   -d '{
     "body": "I am looking into this issue."
   }'
-```
 
-The endpoint returns `201 Created`.
+The endpoint returns 201 Created.
 
-### Receive a Webhook
+Receive a Webhook
 
 GitHub sends webhook requests to:
 
-```text
 POST /webhook
-```
 
 The request must include:
 
-* `X-Hub-Signature-256`
-* `X-GitHub-Event`
-* `X-GitHub-Delivery`
+X-Hub-Signature-256
+
+X-GitHub-Event
+
+X-GitHub-Delivery
 
 Supported GitHub event types:
 
-* `issues`
-* `issue_comment`
-* `ping`
+issues
+
+issue_comment
+
+ping
 
 Example local request:
 
-```bash
 curl -X POST http://localhost:8000/webhook \
   -H "Content-Type: application/json" \
   -H "X-GitHub-Event: ping" \
@@ -250,158 +243,162 @@ curl -X POST http://localhost:8000/webhook \
     "zen": "Keep it logically awesome.",
     "hook_id": 123456
   }'
-```
 
 A successfully verified webhook returns:
 
-```text
 204 No Content
-```
 
-### View Processed Events
+View Processed Events
 
-```bash
 curl http://localhost:8000/events
-```
 
 The endpoint returns the webhook events stored by the running service.
 
-### Conditional GET with ETag
+Conditional GET with ETag
 
 First request:
 
-```bash
 curl -i http://localhost:8000/issues
-```
 
-Copy the returned `ETag` value and send it in a later request:
+Copy the returned ETag value and send it in a later request:
 
-```bash
 curl -i http://localhost:8000/issues \
   -H 'If-None-Match: W/"example-etag"'
-```
 
 If the issue list has not changed, the service returns:
 
-```text
 304 Not Modified
-```
 
-## 7. GitHub Webhook Setup
+7. GitHub Webhook Setup
 
-1. Start the local service:
+Start the local service:
 
-   ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000
-   ```
+uvicorn main:app --host 0.0.0.0 --port 8000
 
-2. Start a public tunnel. For example, with ngrok:
+Start a public tunnel. For example, with ngrok:
 
-   ```bash
-   ngrok http 8000
-   ```
+ngrok http 8000
 
-3. Copy the HTTPS forwarding URL provided by ngrok.
+Copy the HTTPS forwarding URL provided by ngrok.
 
-4. In the GitHub repository, open:
+In the GitHub repository, open:
 
-   ```text
-   Settings → Webhooks → Add webhook
-   ```
+Settings → Webhooks → Add webhook
 
-5. Configure:
+Configure:
 
-   * Payload URL: `https://your-ngrok-url.ngrok-free.app/webhook`
-   * Content type: `application/json`
-   * Secret: the same value used for `WEBHOOK_SECRET`
-   * Events: select `Issues` and `Issue comments`
+Payload URL: https://your-ngrok-url.ngrok-free.app/webhook
 
-6. Save the webhook.
+Content type: application/json
 
-7. Create or update an issue in the repository.
+Secret: the same value used for WEBHOOK_SECRET
 
-8. Check the GitHub Recent Deliveries page and verify that the request succeeded.
+Events: select Issues and Issue comments
 
-9. Check the local event store:
+Save the webhook.
 
-   ```bash
-   curl http://localhost:8000/events
-   ```
+Create or update an issue in the repository.
 
-To resend a webhook, open the webhook's Recent Deliveries page in GitHub and select **Redeliver**.
+Check the GitHub Recent Deliveries page and verify that the request succeeded.
 
-## 8. Running Tests
+Check the local event store:
+
+curl http://localhost:8000/events
+
+To resend a webhook, open the webhook's Recent Deliveries page in GitHub and select Redeliver.
+
+8. Running Tests
 
 Install the dependencies first:
 
-```bash
 pip install -r requirements.txt
-```
 
 Run the test suite:
 
-```bash
 pytest
-```
+
+Run the coverage report:
+
+python -m pytest --cov=main --cov-report=term-missing
 
 The test suite covers:
 
-* Health check verification
-* Request validation for missing titles and invalid states
-* Invalid webhook signature verification
-* Valid webhook signature verification
-* Unknown webhook event rejection
-* Duplicate webhook delivery handling
-* GitHub authentication error mapping
-* Conditional GET and ETag behavior
+Health check verification
+
+Request validation for missing titles and invalid states
+
+Invalid webhook signature verification
+
+Valid webhook signature verification
+
+Unknown webhook event rejection
+
+Duplicate webhook delivery handling
+
+GitHub authentication error mapping
+
+Conditional GET and ETag behavior
+
+GitHub Link header parsing and pagination behavior
 
 The tests mock external GitHub API calls where appropriate so that the unit tests do not require a live GitHub token.
 
-## 9. Docker
+The opt-in integration test in tests/test_integration.py exercises the issue
+create, get, update, close, reopen, comment, and comment-list lifecycle against
+the configured repository. Run it only against a dedicated test repository:
+
+RUN_GITHUB_INTEGRATION=1 python -m pytest tests/test_integration.py -v
+
+The integration test is skipped by default and is not run in CI, so normal test
+runs do not change the repository or require a live token.
+
+9. Docker
 
 Build the image:
 
-```bash
 docker build -t github-issues-gateway .
-```
 
 Run the service:
 
-```bash
 docker run --rm \
   --env-file .env \
   -p 8000:8000 \
   github-issues-gateway
-```
 
 The service will be available at:
 
-```text
 http://localhost:8000
-```
 
-## 10. GitHub Actions
+10. GitHub Actions
 
 The repository includes a GitHub Actions workflow at:
 
-```text
 .github/workflows/ci.yml
-```
 
 The workflow:
 
-1. Checks out the repository
-2. Sets up Python 3.11
-3. Installs the dependencies
-4. Runs the Pytest test suite
+Checks out the repository
+
+Sets up Python 3.11
+
+Installs the dependencies
+
+Runs the Pytest test suite with coverage reporting
+
+Builds the Docker image
 
 The workflow is triggered by pushes and pull requests targeting the main branch.
 
-## 11. Security Notes
+11. Security Notes
 
-* GitHub tokens are loaded from environment variables.
-* The `.env` file is excluded from version control.
-* Webhook signatures are verified with HMAC SHA-256.
-* Signature comparisons use constant-time comparison through `hmac.compare_digest`.
-* Secrets and raw authorization headers should not be logged.
-* The GitHub API uses the required `application/vnd.github+json` Accept header.
+GitHub tokens are loaded from environment variables.
+
+The .env file is excluded from version control.
+
+Webhook signatures are verified with HMAC SHA-256.
+
+Signature comparisons use constant-time comparison through hmac.compare_digest.
+
+Secrets and raw authorization headers should not be logged.
+
+The GitHub API uses the required application/vnd.github+json Accept header.
