@@ -3,8 +3,4 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
-<<<<<<< HEAD
 .pytest_cache/
-=======
-.pytest_cache/
->>>>>>> e80ac80 (Complete GitHub gateway project with tests, Docker, and CI)
