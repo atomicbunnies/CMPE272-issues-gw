@@ -21,3 +21,6 @@ The service forwards GitHub REST API v3 pagination controls seamlessly:
 ## 4. Security & Operational Trade-offs
 * **Secret Isolation**: Configuration and secrets are exclusively managed via 12-factor environment variables (`.env`), ensuring no credentials leak into version control.
 * **Stateless Gateway Design**: By remaining stateless (except for ephemeral in-memory event deduplication), the gateway scales horizontally behind load balancers with minimal infrastructure complexity.
+
+## 5. Extra Credit: Conditional GET (ETag)
+Implemented ETag evaluation for `GET /issues`. Sending an `If-None-Match` header yields a `304 Not Modified` response when cached, optimizing bandwidth usage.
