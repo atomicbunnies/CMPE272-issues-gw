@@ -1,7 +1,11 @@
 # System Design Note: GitHub Issues Gateway
 
-**Author:** Byeonggwan Cho  
-**Course:** CMPE 272 – Enterprise Software Platforms  
+**Team:** 4 Musketeers  
+**Primary Software Implementation:** Byeonggwan Cho  
+**Documentation Review:** Haozheng Yang  
+**Quality Assurance:** Vansh Virani  
+**Deployment Verification & Submission:** Divpreet Dhingra  
+**Course:** CMPE 272 – Enterprise Software Platforms 
 
 ## 1. Overview
 
